@@ -216,3 +216,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Bear Tracks Seat Watcher local files
+.env
+.env.*
+!.env.example
+
+beartracks_watch_profile/
+beartracks_watch_chrome_profile/
+
+# Playwright local browser/cache files
+.playwright/
+ms-playwright/
+
+# macOS
+.DS_Store
