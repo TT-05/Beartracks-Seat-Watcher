@@ -73,8 +73,6 @@ In Telegram:
 
 3. Follow the instructions
 
-4. Copy the bot token
-
 Then activate the virtual environment:
 
 ```
@@ -90,6 +88,7 @@ Run the Telegram setup helper:
 python setup_telegram.py
 
 ```
+Copy the bot token
 
 The helper will ask for your bot token, ask you to send `/start` or `test` to your bot, then automatically find your `chat_id` and save both values into a local `.env` file.
 
