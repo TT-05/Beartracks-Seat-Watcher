@@ -48,6 +48,16 @@ LOGIN_RE = re.compile(
 
 )
 
+TARGET_MENU_TEXTS = [
+    "Shopping Cart and Watch List",
+    "Shopping Cart and Watchlist",
+    "Shopping Cart",
+]
+
+TARGET_TERM_TEXTS = [
+    "Fall Term 2026",
+]
+
 def now():
 
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -202,6 +212,56 @@ def confirm_watchlist_page(page):
 
         input("After confirming, press Enter to check again: ")
 
+def click_text_in_any_frame(page, possible_texts, timeout=8000):
+    if isinstance(possible_texts, str):
+        possible_texts = [possible_texts]
+
+    for text in possible_texts:
+        for frame in page.frames:
+            try:
+                locator = frame.get_by_text(text, exact=True).first
+                locator.click(timeout=timeout)
+                log(f'Clicked exact text: "{text}"')
+                return True
+            except Exception:
+                pass
+
+            try:
+                locator = frame.get_by_text(text, exact=False).first
+                locator.click(timeout=timeout)
+                log(f'Clicked partial text: "{text}"')
+                return True
+            except Exception:
+                pass
+
+    log(f"Could not click any of these texts: {possible_texts}")
+    return False
+
+def return_to_watchlist_page(page):
+    log("Trying to return to Watch List page...")
+
+    time.sleep(random.randint(5, 8))
+
+    if not click_text_in_any_frame(page, TARGET_MENU_TEXTS):
+        notify("Could not click Shopping Cart and Watch List. Please return manually.")
+        return False
+
+    time.sleep(random.randint(5, 8))
+
+    if not click_text_in_any_frame(page, TARGET_TERM_TEXTS):
+        notify("Could not click Fall Term 2026. Please select the term manually.")
+        return False
+
+    time.sleep(random.randint(8, 12))
+
+    text = get_all_visible_text(page)
+    if "Open Seats" in text:
+        log("Returned to Watch List page successfully.")
+        return True
+
+    log("Clicked target page, but Open Seats was not detected yet.")
+    return False
+
 def main():
 
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
@@ -349,6 +409,8 @@ def main():
                 page.reload(wait_until="domcontentloaded", timeout=60000)
 
                 time.sleep(random.randint(8, 15))
+                
+                return_to_watchlist_page(page)
 
             except PlaywrightTimeoutError:
 
@@ -361,6 +423,8 @@ def main():
                     page.reload(wait_until="domcontentloaded", timeout=60000)
 
                     time.sleep(random.randint(8, 15))
+                    
+                    return_to_watchlist_page(page)
 
                 except Exception as e:
 
