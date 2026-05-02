@@ -115,7 +115,7 @@ Then:
 
 1. A Chrome window will open.
 
-2. Log in to Bear Tracks manually.
+2. Log in to Bear Tracks manually. It may fail in the first try. Try again.
 
 3. Navigate to your Watch List or Cart page.
 
