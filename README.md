@@ -38,7 +38,7 @@ It uses Playwright to open a real Chrome browser session, reads visible page tex
 
 - Telegram bot token
 
-## Installation
+## Installation and Auto running
 
 Clone the repository:
 
@@ -49,17 +49,17 @@ cd beartracks-seat-watcher
 
 ```
 
-Run the setup script:
+Run the run script:
 
 ```
 
-chmod +x setup.sh
+chmod +x run.sh
 
-./setup.sh
+./run.sh
 
 ```
 
-This will create a virtual environment, install Python dependencies, and install Playwright Chrome support.
+This will create a virtual environment, install Python dependencies, and install Playwright Chrome support. Then, the script will run setup_telegram.py to help setting up telegram bot. When everything is ready, it will run beartracks-watch.py
 
 ## Telegram Setup
 
@@ -73,27 +73,20 @@ In Telegram:
 
 3. Follow the instructions
 
-Then activate the virtual environment:
-
-```
-
-source venv/bin/activate
-
-```
-
-Run the Telegram setup helper:
-
-```
-
-python setup_telegram.py
-
-```
-Copy the bot token
+Copy the bot token and paste it when setup_telegram.py ask for it.
 
 The helper will ask for your bot token, ask you to send `/start` or `test` to your bot, then automatically find your `chat_id` and save both values into a local `.env` file.
 
 
-## Usage
+## Usage(not using run.sh)
+
+Install all dependencies:
+
+```
+
+pip install -r requirements.txt
+
+```
 
 Activate the virtual environment:
 
@@ -102,6 +95,14 @@ Activate the virtual environment:
 source venv/bin/activate
 
 ```
+Run setup_telegram:
+
+```
+
+python setup_telegram.py
+
+```
+Follow telegram setup described above and the instructions.
 
 Run the watcher:
 
@@ -117,7 +118,7 @@ Then:
 
 2. Log in to Bear Tracks manually. It may fail in the first try. Try again.
 
-3. Navigate to your Watch List or Cart page.
+3. Navigate to your Watch List and Cart page.
 
 4. Make sure the page shows `Open Seats X of Y`.
 
