@@ -18,6 +18,8 @@ It uses Playwright to open a real Chrome browser session, reads visible page tex
 
 - Supports `.env` configuration
 
+- Optional auto-enter enrollment page control
+
 - Includes a Telegram setup helper
 
 - Does not store your CCID or password
@@ -76,6 +78,28 @@ In Telegram:
 Copy the bot token and paste it when setup_telegram.py ask for it.
 
 The helper will ask for your bot token, ask you to send `/start` or `test` to your bot, then automatically find your `chat_id` and save both values into a local `.env` file.
+
+## Auto-Enter Enrollment Page
+
+Auto-enter is disabled by default. Add this optional setting to `.env` only if you want the watcher to open the enrollment page after an open seat is detected:
+
+```
+AUTO_ENTER_ENROLLMENT=false
+```
+
+`run.sh` asks which term and course to monitor before starting. Use Bear Tracks term text such as `Fall Term 2026`; pressing Enter uses `Fall Term 2026`. The course answer is passed as `TARGET_COURSE`; pressing Enter uses `CMPUT 328`.
+
+`AUTO_ENTER_ENROLLMENT=true` makes the watcher click `Class Search and Enroll`, select the target term if Bear Tracks asks for a term, open the selected target course, and stop on the course enrollment page.
+
+Recommended first test:
+
+```
+TARGET_TERM="Fall Term 2026"
+TARGET_COURSE="CMPUT 328"
+AUTO_ENTER_ENROLLMENT=true
+```
+
+The watcher does not submit enrollment automatically.
 
 
 ## Usage(not using run.sh)

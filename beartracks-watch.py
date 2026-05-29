@@ -28,6 +28,12 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 
+def bool_env(name, default=False):
+    value = os.getenv(name, "").strip().lower()
+    if not value:
+        return default
+    return value in ("1", "true", "yes", "y", "on")
+
 # =========================
 
 # Basic settings
@@ -37,6 +43,12 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 PROFILE_DIR = str(Path.home() / "beartracks_watch_chrome_profile")
 
 REFRESH_INTERVAL = (180, 240)
+
+AUTO_ENTER_ENROLLMENT = bool_env("AUTO_ENTER_ENROLLMENT", False)
+
+TARGET_COURSE = (os.getenv("TARGET_COURSE", "CMPUT 328").strip() or "CMPUT 328").upper()
+
+TARGET_TERM = os.getenv("TARGET_TERM", "Fall Term 2026").strip() or "Fall Term 2026"
 
 SEAT_RE = re.compile(r"Open Seats\s+(\d+)\s+of\s+(\d+)", re.IGNORECASE)
 
@@ -55,8 +67,17 @@ TARGET_MENU_TEXTS = [
 ]
 
 TARGET_TERM_TEXTS = [
-    "Fall Term 2026",
+    TARGET_TERM,
 ]
+
+TARGET_COURSE_TEXTS = [
+    TARGET_COURSE,
+]
+
+ENROLLMENT_PAGE_RE = re.compile(
+    r"(Class Selection|Select a class option|Course Information)",
+    re.IGNORECASE,
+)
 
 def now():
 
@@ -174,6 +195,176 @@ def parse_open_seats(text):
 
     return results
 
+def course_code_pattern(course):
+    parts = course.upper().split()
+    if len(parts) >= 2:
+        subject = re.escape(parts[0])
+        number = re.escape(parts[1])
+        return re.compile(rf"\b{subject}\s*[-\s]?\s*{number}\b", re.IGNORECASE)
+    return re.compile(re.escape(course), re.IGNORECASE)
+
+def get_target_open_seats_by_position(page):
+    target_re = course_code_pattern(TARGET_COURSE)
+    results = []
+
+    for frame in page.frames:
+        try:
+            frame_results = frame.evaluate(
+                """
+                ({ targetPattern }) => {
+                    const targetRe = new RegExp(targetPattern, "i");
+                    const anyCourseRe = /\\b[A-Z]{2,6}\\s*[-\\s]?\\s*\\d{3}[A-Z]?\\b/i;
+                    const seatRe = /Open\\s*Seats\\s*(\\d+)\\s*of\\s*(\\d+)/i;
+
+                    function isVisible(el) {
+                        const style = window.getComputedStyle(el);
+                        const rect = el.getBoundingClientRect();
+                        return (
+                            rect.width > 0 &&
+                            rect.height > 0 &&
+                            style.display !== "none" &&
+                            style.visibility !== "hidden" &&
+                            Number(style.opacity) !== 0
+                        );
+                    }
+
+                    const items = [];
+                    for (const el of document.body.querySelectorAll("*")) {
+                        if (!isVisible(el)) {
+                            continue;
+                        }
+
+                        const text = (el.innerText || el.textContent || "").replace(/\\s+/g, " ").trim();
+                        if (!text || text.length > 300) {
+                            continue;
+                        }
+
+                        const rect = el.getBoundingClientRect();
+                        items.push({
+                            text,
+                            x: rect.left,
+                            y: rect.top,
+                            w: rect.width,
+                            h: rect.height,
+                            cx: rect.left + rect.width / 2,
+                            cy: rect.top + rect.height / 2,
+                        });
+                    }
+
+                    const rawTargets = items
+                        .filter((item) => targetRe.test(item.text))
+                        .sort((a, b) => a.y - b.y || a.x - b.x);
+
+                    const targets = [];
+                    for (const target of rawTargets) {
+                        const duplicate = targets.find((existing) => {
+                            return (
+                                Math.abs(existing.x - target.x) < 24 &&
+                                Math.abs(existing.y - target.y) < 24
+                            );
+                        });
+
+                        if (!duplicate) {
+                            targets.push(target);
+                            continue;
+                        }
+
+                        if (target.w * target.h < duplicate.w * duplicate.h) {
+                            Object.assign(duplicate, target);
+                        }
+                    }
+
+                    const courseHeadings = items
+                        .filter((item) => anyCourseRe.test(item.text))
+                        .sort((a, b) => a.y - b.y || a.x - b.x);
+
+                    const rawSeats = items
+                        .map((item) => {
+                            const match = item.text.match(seatRe);
+                            if (!match) {
+                                return null;
+                            }
+                            return {
+                                open: Number(match[1]),
+                                total: Number(match[2]),
+                                raw: match[0],
+                                x: item.x,
+                                y: item.y,
+                                w: item.w,
+                                h: item.h,
+                                cy: item.cy,
+                            };
+                        })
+                        .filter(Boolean)
+                        .sort((a, b) => a.y - b.y || a.x - b.x);
+
+                    const seats = [];
+                    for (const seat of rawSeats) {
+                        const duplicate = seats.find((existing) => {
+                            return (
+                                existing.open === seat.open &&
+                                existing.total === seat.total &&
+                                Math.abs(existing.x - seat.x) < 24 &&
+                                Math.abs(existing.y - seat.y) < 24
+                            );
+                        });
+
+                        if (!duplicate) {
+                            seats.push(seat);
+                            continue;
+                        }
+
+                        if (seat.w * seat.h < duplicate.w * duplicate.h) {
+                            Object.assign(duplicate, seat);
+                        }
+                    }
+
+                    const matched = [];
+                    const seen = new Set();
+
+                    for (const target of targets) {
+                        const nextCourse = courseHeadings.find((item) => {
+                            return (
+                                item.y > target.y + Math.max(target.h, 20) &&
+                                item.x >= target.x - 220 &&
+                                item.x <= target.x + 320
+                            );
+                        });
+
+                        const blockTop = target.y - 25;
+                        const blockBottom = nextCourse ? nextCourse.y - 5 : target.y + 260;
+
+                        for (const seat of seats) {
+                            if (seat.x <= target.x || seat.cy < blockTop || seat.cy >= blockBottom) {
+                                continue;
+                            }
+
+                            const key = `${seat.raw}:${Math.round(seat.x)}:${Math.round(seat.y)}`;
+                            if (seen.has(key)) {
+                                continue;
+                            }
+
+                            seen.add(key);
+                            matched.push({
+                                open: seat.open,
+                                total: seat.total,
+                                raw: seat.raw,
+                            });
+                        }
+                    }
+
+                    return matched;
+                }
+                """,
+                {"targetPattern": target_re.pattern},
+            )
+
+            results.extend(frame_results)
+        except Exception:
+            pass
+
+    return results
+
 def confirm_watchlist_page(page):
 
     """
@@ -194,13 +385,18 @@ def confirm_watchlist_page(page):
 
             continue
 
-        if "Open Seats" in text:
+        if get_target_open_seats_by_position(page):
 
-            log("Detected Open Seats. Current page is monitorable.")
+            log(f"Detected Open Seats for {TARGET_COURSE}. Current page is monitorable.")
 
             return
 
-        log("Could not detect Open Seats on the current page.")
+        target_seen = bool(course_code_pattern(TARGET_COURSE).search(text))
+        open_seats_seen = "Open Seats" in text
+        log(
+            f"Could not detect Open Seats for {TARGET_COURSE} on the current page. "
+            f"target_seen={target_seen}, open_seats_seen={open_seats_seen}"
+        )
 
         print("Please confirm:")
 
@@ -208,7 +404,7 @@ def confirm_watchlist_page(page):
 
         print("2. The page is fully loaded")
 
-        print("3. You can visually see Open Seats X of Y")
+        print(f"3. You can visually see {TARGET_COURSE} and Open Seats X of Y")
 
         input("After confirming, press Enter to check again: ")
 
@@ -237,6 +433,68 @@ def click_text_in_any_frame(page, possible_texts, timeout=8000):
     log(f"Could not click any of these texts: {possible_texts}")
     return False
 
+def wait_for_text(page, pattern, timeout=30000, poll_seconds=2):
+    deadline = time.time() + timeout / 1000
+
+    while time.time() < deadline:
+        text = get_all_visible_text(page)
+        if pattern.search(text):
+            return text
+        time.sleep(poll_seconds)
+
+    return get_all_visible_text(page)
+
+def enter_enrollment_page(page):
+    notify(f"Open seat found for {TARGET_COURSE}. Trying to enter Class Search and Enroll.")
+
+    if not click_text_in_any_frame(page, "Class Search and Enroll"):
+        notify("Could not click Class Search and Enroll automatically.")
+        return False
+
+    time.sleep(random.randint(5, 8))
+    text = get_all_visible_text(page)
+
+    if "Choose a Term" in text:
+        if not click_text_in_any_frame(page, TARGET_TERM_TEXTS):
+            notify(f"Could not select {TARGET_TERM} automatically.")
+            return False
+        time.sleep(random.randint(5, 8))
+        text = get_all_visible_text(page)
+
+    if "Search For Classes" not in text and not any(course in text for course in TARGET_COURSE_TEXTS):
+        text = wait_for_text(page, re.compile(
+            rf"(Search For Classes|{re.escape(TARGET_COURSE)})",
+            re.IGNORECASE,
+        ))
+
+    if not any(course in text for course in TARGET_COURSE_TEXTS):
+        notify(f"Could not find {TARGET_COURSE} in Class Search and Enroll.")
+        return False
+
+    if not click_text_in_any_frame(page, TARGET_COURSE_TEXTS):
+        notify(f"Could not open {TARGET_COURSE} automatically.")
+        return False
+
+    text = wait_for_text(page, ENROLLMENT_PAGE_RE)
+    if ENROLLMENT_PAGE_RE.search(text):
+        notify(f"Entered {TARGET_COURSE} enrollment page.")
+        return True
+
+    notify(f"Clicked {TARGET_COURSE}, but the enrollment page was not confirmed.")
+    return False
+
+def handle_open_seat(page):
+    if not AUTO_ENTER_ENROLLMENT:
+        notify("Auto-enter enrollment is disabled. Please enroll manually.")
+        return False
+
+    if not enter_enrollment_page(page):
+        return False
+
+    notify("The enrollment page is open for manual review.")
+    input("Press Enter after you finish or want the watcher to continue: ")
+    return False
+
 def return_to_watchlist_page(page):
     log("Trying to return to Watch List page...")
 
@@ -249,17 +507,17 @@ def return_to_watchlist_page(page):
     time.sleep(random.randint(5, 8))
 
     if not click_text_in_any_frame(page, TARGET_TERM_TEXTS):
-        notify("Could not click Fall Term 2026. Please select the term manually.")
+        notify(f"Could not click {TARGET_TERM}. Please select the term manually.")
         return False
 
     time.sleep(random.randint(8, 12))
 
     text = get_all_visible_text(page)
-    if "Open Seats" in text:
+    if get_target_open_seats_by_position(page):
         log("Returned to Watch List page successfully.")
         return True
 
-    log("Clicked target page, but Open Seats was not detected yet.")
+    log(f"Clicked target page, but Open Seats for {TARGET_COURSE} was not detected yet.")
     return False
 
 def main():
@@ -350,11 +608,11 @@ def main():
 
                     continue
 
-                seats = parse_open_seats(text)
+                seats = get_target_open_seats_by_position(page)
 
                 if not seats:
 
-                    log("No Open Seats information found. The page may still be loading or may not be a target page.")
+                    log(f"No Open Seats information found for {TARGET_COURSE}. The page may still be loading or may not be a target page.")
 
                 else:
 
@@ -378,7 +636,7 @@ def main():
 
                         if alert_state != last_alert_state:
 
-                            lines = ["Bear Tracks open seat detected:"]
+                            lines = [f"Bear Tracks open seat detected for {TARGET_COURSE}:"]
 
                             for idx, open_seats, total_seats in open_items:
 
@@ -389,6 +647,11 @@ def main():
                             notify("\n".join(lines))
 
                             last_alert_state = alert_state
+
+                            if handle_open_seat(page):
+                                notify("Auto-enrollment completed. Stopping watcher.")
+                                context.close()
+                                break
 
                         else:
 
