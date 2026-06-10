@@ -30,7 +30,7 @@ It uses Playwright to open a real Chrome browser session, reads visible page tex
 
 ## Requirements
 
-- macOS
+- macOS or Windows
 
 - Python 3
 
@@ -40,7 +40,7 @@ It uses Playwright to open a real Chrome browser session, reads visible page tex
 
 - Telegram bot token
 
-## Installation and Auto running
+## Installation and Auto Running
 
 Clone the repository:
 
@@ -51,17 +51,21 @@ cd beartracks-seat-watcher
 
 ```
 
-Run the run script:
+Run the macOS script:
 
 ```
-
 chmod +x run.sh
-
 ./run.sh
-
 ```
 
-This will create a virtual environment, install Python dependencies, and install Playwright Chrome support. Then, the script will run setup_telegram.py to help setting up telegram bot. When everything is ready, it will run beartracks-watch.py
+On Windows, run PowerShell in the project folder:
+
+```
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\run.ps1
+```
+
+The scripts create a virtual environment, install Python dependencies, and install Playwright Chrome support. Then, if needed, they run setup_telegram.py to help set up the Telegram bot. When everything is ready, they run beartracks-watch.py.
 
 ## Telegram Setup
 
@@ -87,7 +91,7 @@ Auto-enter is disabled by default. Add this optional setting to `.env` only if y
 AUTO_ENTER_ENROLLMENT=false
 ```
 
-`run.sh` asks which term and course to monitor before starting. Use Bear Tracks term text such as `Fall Term 2026`; pressing Enter uses `Fall Term 2026`. The course answer is passed as `TARGET_COURSE`; pressing Enter uses `CMPUT 328`.
+`run.sh` and `run.ps1` ask which term and course to monitor before starting. Use Bear Tracks term text such as `Fall Term 2026`; pressing Enter uses `Fall Term 2026`. The course answer is passed as `TARGET_COURSE`; pressing Enter uses `CMPUT 328`.
 
 `AUTO_ENTER_ENROLLMENT=true` makes the watcher click `Class Search and Enroll`, select the target term if Bear Tracks asks for a term, open the selected target course, and stop on the course enrollment page.
 
