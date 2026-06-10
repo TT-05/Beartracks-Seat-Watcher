@@ -42,6 +42,9 @@ It uses Playwright to open a real Chrome browser session, reads visible page tex
 
 ## Installation and Auto Running
 
+If you are using a win machine and do not have git, install git via the link:
+https://git-scm.com/download/win
+
 Clone the repository:
 
 ```
