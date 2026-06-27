@@ -45,7 +45,7 @@ It uses Playwright to open a real Chrome browser session, reads visible page tex
 If you do not have python, install via the link: 
 https://www.python.org/downloads/
 
-If you are using a win machine and do not have git, install git via the link:
+If you do not have git, install git via the link:
 https://git-scm.com/download/win
 
 Clone the repository:
